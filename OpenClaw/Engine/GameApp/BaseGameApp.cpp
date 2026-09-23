@@ -22,6 +22,7 @@
 
 #include "BaseGameApp.h"
 
+#include <algorithm>
 #include <cctype>
 
 #ifdef __EMSCRIPTEN__
@@ -859,7 +860,25 @@ bool BaseGameApp::InitializeResources(GameOptions& gameOptions)
 
     std::string rezArchivePath = gameOptions.assetsFolder + gameOptions.rezArchive;
 
-    IResourceFile* rezArchive = new ResourceRezArchive(rezArchivePath);
+    // The original game normally provides CLAW.REZ.  OpenClaw also supports
+    // an extracted original Assets tree packed as a ZIP.  This is especially
+    // useful on Android, where the community 1.4.5.4 package contains the
+    // original resources as files instead of a populated CLAW.REZ.
+    IResourceFile* rezArchive = NULL;
+    std::string lowerRezPath = rezArchivePath;
+    std::transform(lowerRezPath.begin(), lowerRezPath.end(), lowerRezPath.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    if (lowerRezPath.size() >= 4 &&
+        lowerRezPath.compare(lowerRezPath.size() - 4, 4, ".zip") == 0)
+    {
+        rezArchive = new ResourceZipArchive(rezArchivePath);
+    }
+    else
+    {
+        rezArchive = new ResourceRezArchive(rezArchivePath);
+    }
+
     std::shared_ptr<ResourceCache> m_pResourceCache { new ResourceCache(gameOptions.resourceCacheSize, rezArchive, ORIGINAL_RESOURCE) };
     if (!m_pResourceCache->Init())
     {

@@ -50,7 +50,7 @@ if (WIN32)
 endif (WIN32)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ../Build_Release)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ../android/libs/armeabi-v7a)
+# Android Gradle Plugin controls the native library output directory.
 
 # Cmake target definitions
 if(Android)
@@ -88,9 +88,7 @@ else (Emscripten)
                 Rpcrt4
                 )
     else (WIN32)
-        # TODO: Is it really important???
         list(APPEND TARGET_LIBS
-                stdc++
                 m
                 )
     endif (WIN32)

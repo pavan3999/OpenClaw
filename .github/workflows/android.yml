@@ -2,201 +2,147 @@ name: Build OpenClaw Android APK
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/android.yml'
+      - 'OpenClaw/**'
+      - 'libwap/**'
+      - 'Box2D/**'
+      - 'ThirdParty/**'
+      - 'CMakeLists.txt'
+      - 'Build_Release/config.xml'
+      - 'Build_Release/ASSETS.ZIP'
+      - 'Build_Release/ORIGINAL_ASSETS.ZIP'
 
 permissions:
   contents: read
 
+env:
+  ANDROID_PLATFORM: android-23
+  ANDROID_COMPILE_SDK: '35'
+  ANDROID_BUILD_TOOLS: '35.0.0'
+  ANDROID_NDK_VERSION: '27.2.12479018'
+  CMAKE_VERSION: '3.31.6'
+  SDL2_VERSION: 'release-2.30.9'
+  SDL2_IMAGE_VERSION: 'release-2.8.4'
+  SDL2_MIXER_VERSION: 'release-2.8.0'
+  SDL2_TTF_VERSION: 'release-2.24.0'
+
 jobs:
-  build:
+  android:
     name: OpenClaw Android APK
     runs-on: ubuntu-24.04
 
-    env:
-      ANDROID_PLATFORM: android-23
-      ANDROID_COMPILE_SDK: "35"
-      ANDROID_BUILD_TOOLS: "35.0.0"
-      ANDROID_NDK: "27.2.12479018"
-      CMAKE_VERSION: "3.31.6"
-
     steps:
-
-      # ============================================================
-      # Source
-      # ============================================================
-
-      - name: Checkout OpenClaw
+      - name: Checkout
         uses: actions/checkout@v4
-
-      # ============================================================
-      # Java / Android SDK
-      # ============================================================
+        with:
+          lfs: true
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
-      - name: Install Android SDK / NDK / CMake
+      - name: Install Android toolchain
         run: |
           sdkmanager --install \
             "platform-tools" \
             "platforms;android-${ANDROID_COMPILE_SDK}" \
             "build-tools;${ANDROID_BUILD_TOOLS}" \
-            "ndk;${ANDROID_NDK}" \
+            "ndk;${ANDROID_NDK_VERSION}" \
             "cmake;${CMAKE_VERSION}"
 
-      - name: Set Android environment
-        run: |
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
 
-      # ============================================================
-      # Original Captain Claw files
-      # ============================================================
-
-      - name: Check CLAW.REZ
+      - name: Verify original game resources
         run: |
-          if [ ! -f "Build_Release/CLAW.REZ" ]; then
-            echo ""
-            echo "============================================================"
-            echo "ERROR: Build_Release/CLAW.REZ is missing."
-            echo ""
-            echo "OpenClaw requires the original Captain Claw game archive."
-            echo "Provide your own legally obtained copy at:"
-            echo ""
-            echo "    Build_Release/CLAW.REZ"
-            echo ""
-            echo "The OpenClaw source repository does not contain it."
-            echo "============================================================"
-            echo ""
+          test -s Build_Release/ORIGINAL_ASSETS.ZIP || {
+            echo '::error::Build_Release/ORIGINAL_ASSETS.ZIP is missing.'
+            echo 'It must contain the CONTENTS of the original Captain Claw Assets directory at the ZIP root.'
             exit 1
-          fi
+          }
 
-          ls -lh Build_Release/CLAW.REZ
+          test -s Build_Release/ASSETS.ZIP || {
+            echo '::error::Build_Release/ASSETS.ZIP is missing.'
+            exit 1
+          }
+
+          unzip -t Build_Release/ORIGINAL_ASSETS.ZIP >/dev/null
+          unzip -t Build_Release/ASSETS.ZIP >/dev/null
+
+          echo 'Original resource ZIP:'
+          ls -lh Build_Release/ORIGINAL_ASSETS.ZIP
+          echo 'OpenClaw custom resource ZIP:'
           ls -lh Build_Release/ASSETS.ZIP
-          ls -lh Build_Release/config.xml
 
-      # ============================================================
-      # Download SDL2
-      # ============================================================
+          echo 'First original resources:'
+          unzip -l Build_Release/ORIGINAL_ASSETS.ZIP | head -25
 
       - name: Download SDL2
         run: |
-          git clone \
-            --depth 1 \
-            --branch release-2.30.9 \
-            https://github.com/libsdl-org/SDL.git \
-            android-sdl
+          git clone --depth 1 --branch "${SDL2_VERSION}" \
+            https://github.com/libsdl-org/SDL.git third_party/SDL2
 
       - name: Download SDL2_image
         run: |
-          git clone \
-            --depth 1 \
-            --branch release-2.8.4 \
-            --recurse-submodules \
-            https://github.com/libsdl-org/SDL_image.git \
-            android-sdl-image
+          git clone --depth 1 --branch "${SDL2_IMAGE_VERSION}" --recurse-submodules \
+            https://github.com/libsdl-org/SDL_image.git third_party/SDL2_image
 
       - name: Download SDL2_mixer
         run: |
-          git clone \
-            --depth 1 \
-            --branch release-2.8.2 \
-            --recurse-submodules \
-            https://github.com/libsdl-org/SDL_mixer.git \
-            android-sdl-mixer
+          git clone --depth 1 --branch "${SDL2_MIXER_VERSION}" --recurse-submodules \
+            https://github.com/libsdl-org/SDL_mixer.git third_party/SDL2_mixer
 
       - name: Download SDL2_ttf
         run: |
-          git clone \
-            --depth 1 \
-            --branch release-2.24.0 \
-            --recurse-submodules \
-            https://github.com/libsdl-org/SDL_ttf.git \
-            android-sdl-ttf
+          git clone --depth 1 --branch "${SDL2_TTF_VERSION}" --recurse-submodules \
+            https://github.com/libsdl-org/SDL_ttf.git third_party/SDL2_ttf
 
       - name: Download SDL2_gfx
         run: |
-          git clone \
-            --depth 1 \
-            https://github.com/ferzkopp/SDL2_gfx.git \
-            android-sdl-gfx
+          git clone --depth 1 \
+            https://github.com/ferzkopp/SDL2_gfx.git third_party/SDL2_gfx
 
-      # ============================================================
-      # Create Android project
-      # ============================================================
-
-      - name: Copy SDL Android project
+      - name: Create Android application
         run: |
-          cp -a android-sdl/android-project android-app
-
-      - name: Create Android project directories
-        run: |
-          mkdir -p android-app/app/src/main/java/com/openclaw
-          mkdir -p android-app/app/src/main/jni
+          mkdir -p android-app/app/src/main/java/com/pavan3999/openclaw
+          mkdir -p android-app/app/src/main/res/values
           mkdir -p android-app/app/src/main/assets
+          mkdir -p android-app/app/src/main/cpp
 
-      # ============================================================
-      # Copy SDL Java support
-      # ============================================================
+          # SDLActivity Java support.
+          mkdir -p android-app/app/src/main/java/org/libsdl/app
+          cp third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLActivity.java \
+             android-app/app/src/main/java/org/libsdl/app/SDLActivity.java
 
-      - name: Install SDL Java sources
-        run: |
-          rm -rf android-app/app/src/main/java/org
-          mkdir -p android-app/app/src/main/java
-
-          cp -a \
-            android-sdl/android-project/app/src/main/java/org \
-            android-app/app/src/main/java/
-
-      # ============================================================
-      # Copy game data into APK assets
-      #
-      # Java copies these from APK assets to Android internal
-      # storage before OpenClaw starts.
-      # ============================================================
-
-      - name: Copy game assets
-        run: |
-          cp Build_Release/CLAW.REZ \
-             android-app/app/src/main/assets/CLAW.REZ
-
-          cp Build_Release/ASSETS.ZIP \
-             android-app/app/src/main/assets/ASSETS.ZIP
-
-          cp Build_Release/config.xml \
-             android-app/app/src/main/assets/config.xml
-
-          if [ -f Build_Release/SAVES.XML ]; then
-            cp Build_Release/SAVES.XML \
-               android-app/app/src/main/assets/SAVES.XML
+          if [ -f third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLAudioManager.java ]; then
+            cp third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLAudioManager.java \
+               android-app/app/src/main/java/org/libsdl/app/SDLAudioManager.java
           fi
 
-          cp Build_Release/clacon.ttf \
-             android-app/app/src/main/assets/clacon.ttf
-
-          cp Build_Release/console02.tga \
-             android-app/app/src/main/assets/console02.tga
-
-          if [ -f Build_Release/startup_commands.txt ]; then
-            cp Build_Release/startup_commands.txt \
-               android-app/app/src/main/assets/startup_commands.txt
+          if [ -f third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLControllerManager.java ]; then
+            cp third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLControllerManager.java \
+               android-app/app/src/main/java/org/libsdl/app/SDLControllerManager.java
           fi
 
-      # ============================================================
-      # Android Activity
-      # ============================================================
+          cp Build_Release/ORIGINAL_ASSETS.ZIP android-app/app/src/main/assets/ORIGINAL_ASSETS.ZIP
+          cp Build_Release/ASSETS.ZIP          android-app/app/src/main/assets/ASSETS.ZIP
+          cp Build_Release/config.xml          android-app/app/src/main/assets/config.xml
+          cp Build_Release/SAVES.XML           android-app/app/src/main/assets/SAVES.XML
+          cp Build_Release/clacon.ttf          android-app/app/src/main/assets/clacon.ttf
+          cp Build_Release/console02.tga       android-app/app/src/main/assets/console02.tga
+          cp Build_Release/startup_commands.txt android-app/app/src/main/assets/startup_commands.txt
 
-      - name: Create OpenClaw Activity
+      - name: Create Android Activity
         run: |
-          cat > android-app/app/src/main/java/com/openclaw/OpenClawActivity.java <<'EOF'
-          package com.openclaw;
+          cat > android-app/app/src/main/java/com/pavan3999/openclaw/OpenClawActivity.java <<'EOF'
+          package com.pavan3999.openclaw;
 
-          import android.content.res.AssetManager;
           import android.os.Bundle;
           import java.io.File;
           import java.io.FileOutputStream;
@@ -206,9 +152,8 @@ jobs:
           import org.libsdl.app.SDLActivity;
 
           public class OpenClawActivity extends SDLActivity {
-
-              private static final String[] GAME_FILES = {
-                  "CLAW.REZ",
+              private static final String[] ASSETS = {
+                  "ORIGINAL_ASSETS.ZIP",
                   "ASSETS.ZIP",
                   "config.xml",
                   "SAVES.XML",
@@ -219,131 +164,67 @@ jobs:
 
               @Override
               protected String[] getLibraries() {
-                  return new String[] {
-                      "SDL2",
-                      "openclaw"
-                  };
+                  return new String[] { "SDL2", "openclaw" };
               }
 
-              /*
-               * OpenClaw defines a real main(int,char**) function and
-               * uses SDL_MAIN_HANDLED.
-               *
-               * Therefore call main directly rather than looking for
-               * SDL_main.
-               */
               @Override
               protected String getMainFunction() {
-                  return "main";
+                  return "OpenClawMain";
               }
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   copyGameFiles();
-
                   super.onCreate(savedInstanceState);
               }
 
               private void copyGameFiles() {
-                  File directory = getFilesDir();
+                  for (String name : ASSETS) {
+                      File dst = new File(getFilesDir(), name);
+                      if (dst.exists() && dst.length() > 0) {
+                          continue;
+                      }
 
-                  for (String filename : GAME_FILES) {
-                      try {
-                          copyAssetIfMissing(
-                              filename,
-                              new File(directory, filename)
-                          );
+                      try (InputStream in = getAssets().open(name);
+                           FileOutputStream out = new FileOutputStream(dst)) {
+                          byte[] buffer = new byte[1024 * 1024];
+                          int n;
+                          while ((n = in.read(buffer)) != -1) {
+                              out.write(buffer, 0, n);
+                          }
+                          out.flush();
                       } catch (IOException e) {
-                          throw new RuntimeException(
-                              "Unable to copy game file: " + filename,
-                              e
-                          );
+                          throw new RuntimeException("Failed to copy " + name, e);
                       }
-                  }
-              }
-
-              private void copyAssetIfMissing(
-                      String filename,
-                      File destination) throws IOException {
-
-                  if (destination.exists() &&
-                      destination.length() > 0) {
-                      return;
-                  }
-
-                  AssetManager assets = getAssets();
-
-                  try (InputStream input =
-                           assets.open(filename);
-                       FileOutputStream output =
-                           new FileOutputStream(destination)) {
-
-                      byte[] buffer = new byte[1024 * 1024];
-                      int count;
-
-                      while ((count = input.read(buffer)) != -1) {
-                          output.write(buffer, 0, count);
-                      }
-
-                      output.flush();
                   }
               }
           }
           EOF
 
-      # ============================================================
-      # AndroidManifest
-      # ============================================================
-
-      - name: Create AndroidManifest
+      - name: Create Android manifest
         run: |
           cat > android-app/app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-          <manifest
-              xmlns:android="http://schemas.android.com/apk/res/android"
-              android:versionCode="1"
-              android:versionName="1.0"
-              android:installLocation="auto">
+              <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+              <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+              <uses-feature android:name="android.hardware.gamepad" android:required="false" />
 
-              <uses-feature
-                  android:glEsVersion="0x00020000"
-                  android:required="true" />
-
-              <uses-feature
-                  android:name="android.hardware.touchscreen"
-                  android:required="false" />
-
-              <uses-feature
-                  android:name="android.hardware.gamepad"
-                  android:required="false" />
-
-              <uses-feature
-                  android:name="android.hardware.usb.host"
-                  android:required="false" />
-
-              <uses-feature
-                  android:name="android.hardware.type.pc"
-                  android:required="false" />
-
-              <uses-permission
-                  android:name="android.permission.VIBRATE" />
+              <uses-permission android:name="android.permission.VIBRATE" />
 
               <application
-                  android:label="@string/app_name"
-                  android:icon="@mipmap/ic_launcher"
                   android:allowBackup="false"
                   android:hardwareAccelerated="true"
+                  android:label="OpenClaw"
+                  android:supportsRtl="true"
                   android:theme="@style/AppTheme">
 
                   <activity
-                      android:name="com.openclaw.OpenClawActivity"
-                      android:label="@string/app_name"
-                      android:alwaysRetainTaskState="true"
-                      android:launchMode="singleInstance"
-                      android:screenOrientation="landscape"
+                      android:name="com.pavan3999.openclaw.OpenClawActivity"
                       android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
-                      android:exported="true">
+                      android:exported="true"
+                      android:screenOrientation="landscape">
 
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -351,313 +232,104 @@ jobs:
                       </intent-filter>
 
                   </activity>
-
               </application>
-
           </manifest>
           EOF
 
-      # ============================================================
-      # App name
-      # ============================================================
-
-      - name: Set application name
-        run: |
-          mkdir -p android-app/app/src/main/res/values
-
           cat > android-app/app/src/main/res/values/strings.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <string name="app_name">OpenClaw</string>
           </resources>
           EOF
 
-      # ============================================================
-      # Patch OpenClaw for modern Android storage
-      # ============================================================
+          cat > android-app/app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:windowFullscreen">true</item>
+                  <item name="android:windowNoTitle">true</item>
+              </style>
+          </resources>
+          EOF
 
-      - name: Patch Android storage path
-        shell: bash
+      - name: Create Android CMake project
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          p = Path("OpenClaw/Engine/GameApp/MainLoop.cpp")
-          s = p.read_text()
-
-          # Android currently excludes unistd.h.
-          s = s.replace(
-              '#if !(defined(__ANDROID__) || defined(__WINDOWS__))\n'
-              '#include <pwd.h>\n'
-              '#include <unistd.h>\n'
-              '#endif',
-              '#if defined(__ANDROID__)\n'
-              '#include <unistd.h>\n'
-              '#elif !defined(__WINDOWS__)\n'
-              '#include <pwd.h>\n'
-              '#include <unistd.h>\n'
-              '#endif'
-          )
-
-          old = '''#if defined(__ANDROID__)
-              userDirectory = "/sdcard/claw/";
-          #elif defined(__WINDOWS__)'''
-
-          new = '''#if defined(__ANDROID__)
-              /*
-               * Android 10+ uses scoped storage.
-               *
-               * Use the application's private files directory instead
-               * of /sdcard/claw/.
-               */
-              const char* androidStorage =
-                  SDL_AndroidGetInternalStoragePath();
-
-              if (androidStorage != NULL)
-              {
-                  userDirectory =
-                      std::string(androidStorage) + "/";
-                  chdir(userDirectory.c_str());
-              }
-          #elif defined(__WINDOWS__)'''
-
-          if old not in s:
-              raise SystemExit(
-                  "Could not find Android storage block in MainLoop.cpp"
-              )
-
-          s = s.replace(old, new)
-
-          p.write_text(s)
-          PY
-
-      # ============================================================
-      # Patch root CMake
-      # ============================================================
-
-      - name: Patch OpenClaw CMake
-        shell: bash
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          p = Path("CMakeLists.txt")
-          s = p.read_text()
-
-          # Modern Android NDK uses libc++.
-          old = '''        else (WIN32)
-                # TODO: Is it really important???
-                list(APPEND TARGET_LIBS
-                        stdc++
-                        m
-                        )
-          '''
-
-          new = '''        else (WIN32)
-                list(APPEND TARGET_LIBS
-                        m
-                        )
-          '''
-
-          if old in s:
-              s = s.replace(old, new)
-          else:
-              print("Warning: stdc++ block not found")
-
-          # The old project forces its library output into
-          # android/libs/armeabi-v7a. Gradle must own the output path.
-          s = s.replace(
-              'set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ../android/libs/armeabi-v7a)',
-              '# Android Gradle plugin controls native library output.'
-          )
-
-          # Put modern SDL headers before the old bundled headers.
-          marker = 'include_directories(./ThirdParty/)'
-
-          if marker in s and 'OPENCLAW_ANDROID_SDL_INCLUDE' not in s:
-              s = s.replace(
-                  marker,
-                  '''if(Android AND DEFINED OPENCLAW_ANDROID_SDL_INCLUDE)
-              include_directories(
-                  BEFORE
-                  "${OPENCLAW_ANDROID_SDL_INCLUDE}"
-              )
-          endif()
-
-          ''' + marker
-              )
-
-          p.write_text(s)
-          PY
-
-      # ============================================================
-      # Top-level CMake used by Android Gradle Plugin
-      # ============================================================
-
-      - name: Create Android CMakeLists
-        run: |
-          cat > android-app/app/src/main/jni/CMakeLists.txt <<'EOF'
+          cat > android-app/app/src/main/cpp/CMakeLists.txt <<'EOF'
           cmake_minimum_required(VERSION 3.22)
-
           project(OpenClawAndroid LANGUAGES C CXX)
 
           set(CMAKE_CXX_STANDARD 11)
           set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
           set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-          # ----------------------------------------------------------
-          # SDL2
-          # ----------------------------------------------------------
+          # The repository contains very old SDL headers under ThirdParty/SDL2.
+          # Use the modern Android SDL headers instead.
+          file(REMOVE_RECURSE ${CMAKE_CURRENT_LIST_DIR}/../../../../../ThirdParty/SDL2)
+          file(MAKE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
+          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2/include/
+               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
+          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_image/include/
+               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
+          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_mixer/include/
+               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
+          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_ttf/include/
+               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
+          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_gfx/SDL2_gfxPrimitives.h
+               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
 
+          include_directories(BEFORE ${CMAKE_CURRENT_LIST_DIR}/../../../../../)
+
+          # SDL2
           set(SDL_SHARED ON CACHE BOOL "" FORCE)
           set(SDL_STATIC OFF CACHE BOOL "" FORCE)
           set(SDL_TESTS OFF CACHE BOOL "" FORCE)
-          set(SDL_TESTS OFF CACHE BOOL "" FORCE)
           set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+          set(SDL_INSTALL_TESTS OFF CACHE BOOL "" FORCE)
+          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2 SDL2-build)
 
-          add_subdirectory(
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl
-              ${CMAKE_CURRENT_BINARY_DIR}/SDL2
-          )
-
-          # ----------------------------------------------------------
           # SDL2_image
-          #
-          # STB avoids external system image dependencies.
-          # ----------------------------------------------------------
-
-          set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
           set(SDL2IMAGE_SAMPLES OFF CACHE BOOL "" FORCE)
           set(SDL2IMAGE_TESTS OFF CACHE BOOL "" FORCE)
-          set(SDL2IMAGE_BACKEND_STB ON CACHE BOOL "" FORCE)
+          set(SDL2IMAGE_VENDORED ON CACHE BOOL "" FORCE)
+          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_image SDL2_image-build)
 
-          set(SDL2IMAGE_AVIF OFF CACHE BOOL "" FORCE)
-          set(SDL2IMAGE_JXL OFF CACHE BOOL "" FORCE)
-          set(SDL2IMAGE_TIF OFF CACHE BOOL "" FORCE)
-          set(SDL2IMAGE_WEBP OFF CACHE BOOL "" FORCE)
-
-          add_subdirectory(
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl-image
-              ${CMAKE_CURRENT_BINARY_DIR}/SDL2_image
-          )
-
-          # ----------------------------------------------------------
-          # SDL2_mixer
-          #
-          # OpenClaw needs WAV + MIDI/XMI.
-          # Timidity is used for MIDI on Android.
-          # ----------------------------------------------------------
-
+          # SDL2_mixer. Timidity is kept enabled for XMI->MIDI playback.
           set(SDL2MIXER_SAMPLES OFF CACHE BOOL "" FORCE)
           set(SDL2MIXER_CMD OFF CACHE BOOL "" FORCE)
-
           set(SDL2MIXER_VENDORED ON CACHE BOOL "" FORCE)
-
-          set(SDL2MIXER_FLAC OFF CACHE BOOL "" FORCE)
-          set(SDL2MIXER_GME OFF CACHE BOOL "" FORCE)
-          set(SDL2MIXER_MOD OFF CACHE BOOL "" FORCE)
-          set(SDL2MIXER_MP3 OFF CACHE BOOL "" FORCE)
-          set(SDL2MIXER_OPUS OFF CACHE BOOL "" FORCE)
-          set(SDL2MIXER_WAVPACK OFF CACHE BOOL "" FORCE)
-
           set(SDL2MIXER_MIDI ON CACHE BOOL "" FORCE)
+          set(SDL2MIXER_MIDI_TIMIDITY ON CACHE BOOL "" FORCE)
           set(SDL2MIXER_MIDI_FLUIDSYNTH OFF CACHE BOOL "" FORCE)
           set(SDL2MIXER_MIDI_NATIVE OFF CACHE BOOL "" FORCE)
-          set(SDL2MIXER_MIDI_TIMIDITY ON CACHE BOOL "" FORCE)
+          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_mixer SDL2_mixer-build)
 
-          set(SDL2MIXER_VORBIS OFF CACHE STRING "" FORCE)
-          set(SDL2MIXER_WAVE ON CACHE BOOL "" FORCE)
-
-          add_subdirectory(
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl-mixer
-              ${CMAKE_CURRENT_BINARY_DIR}/SDL2_mixer
-          )
-
-          # ----------------------------------------------------------
           # SDL2_ttf
-          # ----------------------------------------------------------
-
           set(SDL2TTF_SAMPLES OFF CACHE BOOL "" FORCE)
-          set(SDL2TTF_HARFBUZZ OFF CACHE BOOL "" FORCE)
           set(SDL2TTF_VENDORED ON CACHE BOOL "" FORCE)
+          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_ttf SDL2_ttf-build)
 
-          add_subdirectory(
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl-ttf
-              ${CMAKE_CURRENT_BINARY_DIR}/SDL2_ttf
-          )
-
-          # ----------------------------------------------------------
-          # SDL2_gfx
-          #
-          # OpenClaw only requires polygonRGBA() and circleRGBA().
-          # Build the primitive implementation directly.
-          # ----------------------------------------------------------
-
+          # SDL2_gfx: OpenClaw uses polygonRGBA/circleRGBA from the primitives
+          # implementation. Build the complete primitives translation unit.
           add_library(SDL2_gfx STATIC
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl-gfx/SDL2_gfxPrimitives.c
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_gfx/SDL2_gfxPrimitives.c
           )
-
-          target_include_directories(SDL2_gfx
-              PUBLIC
-                  ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl-gfx
-                  ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl/include
+          target_include_directories(SDL2_gfx PUBLIC
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_gfx
           )
+          target_link_libraries(SDL2_gfx PRIVATE SDL2)
 
-          target_link_libraries(SDL2_gfx
-              PRIVATE
-                  SDL2
-          )
+          # OpenClaw root. It links SDL2, SDL2_image, SDL2_mixer, SDL2_ttf,
+          # SDL2_gfx and Android system libraries.
+          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../ OpenClaw-build)
 
-          # ----------------------------------------------------------
-          # Header ordering
-          # ----------------------------------------------------------
-
-          include_directories(
-              BEFORE
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl/include
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl-gfx
-          )
-
-          # ----------------------------------------------------------
-          # OpenClaw itself
-          # ----------------------------------------------------------
-
-          set(OPENCLAW_ANDROID_SDL_INCLUDE
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../android-sdl/include
-              CACHE PATH "" FORCE
-          )
-
-          add_subdirectory(
-              ${CMAKE_CURRENT_SOURCE_DIR}/../../../../..
-              ${CMAKE_CURRENT_BINARY_DIR}/OpenClaw
-          )
-
-          # ----------------------------------------------------------
-          # Link gfx explicitly because the original project expects
-          # the old SDL2_gfx library name.
-          # ----------------------------------------------------------
-
-          target_link_libraries(
-              openclaw
-              PRIVATE
-                  SDL2_gfx
-          )
-
-          # Keep the JNI/main library name expected by SDLActivity.
-          set_target_properties(
-              openclaw
-              PROPERTIES
-                  OUTPUT_NAME "openclaw"
-          )
+          target_link_libraries(openclaw PRIVATE SDL2_gfx)
           EOF
 
-      # ============================================================
-      # Android Gradle build configuration
-      # ============================================================
+      - name: Verify source Android entry point
+        run: |
+          grep -n "OpenClawMain" OpenClaw/main.cpp
+          grep -n "ORIGINAL_ASSETS.ZIP" Build_Release/config.xml
 
-      - name: Configure Gradle project
+      - name: Create Gradle project
         run: |
           cat > android-app/settings.gradle <<'EOF'
           pluginManagement {
@@ -670,15 +342,14 @@ jobs:
 
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-
               repositories {
                   google()
                   mavenCentral()
               }
           }
 
-          rootProject.name = "OpenClawAndroid"
-          include(":app")
+          rootProject.name = 'OpenClawAndroid'
+          include ':app'
           EOF
 
           cat > android-app/build.gradle <<'EOF'
@@ -693,57 +364,40 @@ jobs:
           }
 
           android {
-              namespace 'com.openclaw'
-
+              namespace 'com.pavan3999.openclaw'
               compileSdk 35
 
               defaultConfig {
-                  applicationId 'com.openclaw'
-
+                  applicationId 'com.pavan3999.openclaw'
                   minSdk 23
                   targetSdk 35
-
                   versionCode 1
                   versionName '1.0'
 
                   ndk {
-                      /*
-                       * arm64-v8a = modern Android phones
-                       * armeabi-v7a = older 32-bit ARM phones
-                       */
                       abiFilters 'arm64-v8a', 'armeabi-v7a'
                   }
 
                   externalNativeBuild {
                       cmake {
-                          arguments '-DANDROID_STL=c++_static'
+                          arguments '-DANDROID_STL=c++_shared'
                       }
                   }
               }
 
               externalNativeBuild {
                   cmake {
-                      path file('src/main/jni/CMakeLists.txt')
+                      path file('src/main/cpp/CMakeLists.txt')
                       version '3.31.6'
                   }
               }
+
+              ndkVersion '27.2.12479018'
 
               packaging {
                   jniLibs {
                       useLegacyPackaging = true
                   }
-              }
-
-              ndkVersion '27.2.12479018'
-          }
-
-          /*
-           * Build a universal APK containing both ARM ABIs.
-           */
-          splits {
-              abi {
-                  enable false
-                  universalApk true
               }
           }
           EOF
@@ -754,68 +408,29 @@ jobs:
           android.nonTransitiveRClass=true
           EOF
 
-      # ============================================================
-      # Gradle
-      # ============================================================
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.9"
+          gradle-version: '8.9'
 
       - name: Generate Gradle wrapper
         working-directory: android-app
-        run: |
-          gradle wrapper --gradle-version 8.9
+        run: gradle wrapper --gradle-version 8.9
 
-      # ============================================================
-      # Build
-      # ============================================================
-
-      - name: Build OpenClaw APK
+      - name: Build debug APK
         working-directory: android-app
-        run: |
-          ./gradlew \
-            --no-daemon \
-            --stacktrace \
-            assembleDebug
-
-      # ============================================================
-      # Find APK
-      # ============================================================
-
-      - name: Show APK
-        run: |
-          echo "=== APK files ==="
-          find android-app/app/build/outputs/apk \
-            -type f \
-            -name "*.apk" \
-            -print
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
 
       - name: Rename APK
         run: |
-          APK=$(find android-app/app/build/outputs/apk \
-            -type f \
-            -name "*.apk" \
-            | head -n 1)
-
-          if [ -z "$APK" ]; then
-            echo "::error::No APK was produced."
-            exit 1
-          fi
-
-          cp "$APK" \
-            OpenClaw-Android-debug.apk
-
-          ls -lh OpenClaw-Android-debug.apk
-
-      # ============================================================
-      # Upload
-      # ============================================================
+          APK=$(find android-app/app/build/outputs/apk/debug -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" OpenClaw-Android-arm64-v8a-debug.apk
+          ls -lh OpenClaw-Android-arm64-v8a-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClaw-Android-APK
-          path: OpenClaw-Android-debug.apk
+          name: OpenClaw-Android-arm64-v8a-debug
+          path: OpenClaw-Android-arm64-v8a-debug.apk
           if-no-files-found: error

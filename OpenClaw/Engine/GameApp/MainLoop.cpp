@@ -2,7 +2,9 @@
 #include "MainLoop.h"
 #include <fstream>
 
-#if !(defined(__ANDROID__) || defined(__WINDOWS__))
+#if defined(__ANDROID__)
+#include <SDL2/SDL_system.h>
+#elif !defined(__WINDOWS__)
 #include <pwd.h>
 #include <unistd.h>
 #endif
@@ -21,7 +23,11 @@ int RunGameEngine(int argc, char** argv)
     std::string userDirectory = "";
 
 #if defined(__ANDROID__)
-    userDirectory = "/sdcard/claw/";
+    const char* androidStorage = SDL_AndroidGetInternalStoragePath();
+    if (androidStorage != NULL)
+    {
+        userDirectory = std::string(androidStorage) + "/";
+    }
 #elif defined(__WINDOWS__)
     userDirectory = "";
 #else
