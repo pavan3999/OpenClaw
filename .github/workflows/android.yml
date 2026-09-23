@@ -38,6 +38,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           lfs: true
+          fetch-depth: 1
+
+      # actions/checkout can initialize LFS, but explicitly pulling here makes
+      # the build fail early with a useful error if the LFS object is missing.
+      - name: Pull Git LFS files
+        run: |
+          git lfs install --local
+          git lfs pull
+
+          echo '=== Git LFS files ==='
+          git lfs ls-files
+
+          echo '=== LFS status ==='
+          git lfs status
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -60,28 +74,64 @@ jobs:
           echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
 
       - name: Verify original game resources
+        shell: bash
         run: |
-          test -s Build_Release/ORIGINAL_ASSETS.ZIP || {
-            echo '::error::Build_Release/ORIGINAL_ASSETS.ZIP is missing.'
-            echo 'It must contain the CONTENTS of the original Captain Claw Assets directory at the ZIP root.'
+          set -euo pipefail
+
+          echo '=== Resource files ==='
+
+          for f in \
+            Build_Release/ORIGINAL_ASSETS.ZIP \
+            Build_Release/ASSETS.ZIP
+          do
+            if [ ! -e "$f" ]; then
+              echo "::error::$f does not exist"
+              exit 1
+            fi
+
+            if [ ! -s "$f" ]; then
+              echo "::error::$f is empty"
+              exit 1
+            fi
+
+            echo
+            echo "FILE: $f"
+            ls -lh "$f"
+            file "$f"
+            wc -c "$f"
+          done
+
+          echo
+          echo '=== Check for an unresolved Git LFS pointer ==='
+
+          if grep -aEq '^version https://git-lfs.github.com/spec/v1$' \
+              Build_Release/ORIGINAL_ASSETS.ZIP; then
+            echo "::error::ORIGINAL_ASSETS.ZIP is still a Git LFS pointer."
+            echo "The actual LFS object was not downloaded."
             exit 1
-          }
+          fi
 
-          test -s Build_Release/ASSETS.ZIP || {
-            echo '::error::Build_Release/ASSETS.ZIP is missing.'
+          if grep -aEq '^version https://git-lfs.github.com/spec/v1$' \
+              Build_Release/ASSETS.ZIP; then
+            echo "::error::ASSETS.ZIP is still a Git LFS pointer."
             exit 1
-          }
+          fi
 
-          unzip -t Build_Release/ORIGINAL_ASSETS.ZIP >/dev/null
-          unzip -t Build_Release/ASSETS.ZIP >/dev/null
+          echo
+          echo '=== Test ORIGINAL_ASSETS.ZIP ==='
+          unzip -t Build_Release/ORIGINAL_ASSETS.ZIP
 
-          echo 'Original resource ZIP:'
-          ls -lh Build_Release/ORIGINAL_ASSETS.ZIP
-          echo 'OpenClaw custom resource ZIP:'
-          ls -lh Build_Release/ASSETS.ZIP
+          echo
+          echo '=== Test ASSETS.ZIP ==='
+          unzip -t Build_Release/ASSETS.ZIP
 
-          echo 'First original resources:'
+          echo
+          echo '=== Original resource ZIP ==='
           unzip -l Build_Release/ORIGINAL_ASSETS.ZIP | head -25
+
+          echo
+          echo '=== OpenClaw custom resource ZIP ==='
+          unzip -l Build_Release/ASSETS.ZIP | head -25
 
       - name: Download SDL2
         run: |
@@ -115,28 +165,27 @@ jobs:
           mkdir -p android-app/app/src/main/assets
           mkdir -p android-app/app/src/main/cpp
 
-          # SDLActivity Java support.
           mkdir -p android-app/app/src/main/java/org/libsdl/app
+
           cp third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLActivity.java \
              android-app/app/src/main/java/org/libsdl/app/SDLActivity.java
 
-          if [ -f third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLAudioManager.java ]; then
-            cp third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLAudioManager.java \
-               android-app/app/src/main/java/org/libsdl/app/SDLAudioManager.java
-          fi
+          for f in SDLAudioManager.java SDLControllerManager.java; do
+            if [ -f "third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/$f" ]; then
+              cp "third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/$f" \
+                 "android-app/app/src/main/java/org/libsdl/app/$f"
+            fi
+          done
 
-          if [ -f third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLControllerManager.java ]; then
-            cp third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLControllerManager.java \
-               android-app/app/src/main/java/org/libsdl/app/SDLControllerManager.java
-          fi
+          cp Build_Release/ORIGINAL_ASSETS.ZIP android-app/app/src/main/assets/
+          cp Build_Release/ASSETS.ZIP android-app/app/src/main/assets/
+          cp Build_Release/config.xml android-app/app/src/main/assets/
 
-          cp Build_Release/ORIGINAL_ASSETS.ZIP android-app/app/src/main/assets/ORIGINAL_ASSETS.ZIP
-          cp Build_Release/ASSETS.ZIP          android-app/app/src/main/assets/ASSETS.ZIP
-          cp Build_Release/config.xml          android-app/app/src/main/assets/config.xml
-          cp Build_Release/SAVES.XML           android-app/app/src/main/assets/SAVES.XML
-          cp Build_Release/clacon.ttf          android-app/app/src/main/assets/clacon.ttf
-          cp Build_Release/console02.tga       android-app/app/src/main/assets/console02.tga
-          cp Build_Release/startup_commands.txt android-app/app/src/main/assets/startup_commands.txt
+          for f in SAVES.XML clacon.ttf console02.tga startup_commands.txt; do
+            if [ -f "Build_Release/$f" ]; then
+              cp "Build_Release/$f" "android-app/app/src/main/assets/$f"
+            fi
+          done
 
       - name: Create Android Activity
         run: |
@@ -180,19 +229,24 @@ jobs:
 
               private void copyGameFiles() {
                   for (String name : ASSETS) {
-                      File dst = new File(getFilesDir(), name);
-                      if (dst.exists() && dst.length() > 0) {
-                          continue;
-                      }
+                      try {
+                          InputStream in = getAssets().open(name);
+                          File dst = new File(getFilesDir(), name);
 
-                      try (InputStream in = getAssets().open(name);
-                           FileOutputStream out = new FileOutputStream(dst)) {
-                          byte[] buffer = new byte[1024 * 1024];
-                          int n;
-                          while ((n = in.read(buffer)) != -1) {
-                              out.write(buffer, 0, n);
+                          if (dst.exists() && dst.length() > 0) {
+                              in.close();
+                              continue;
                           }
-                          out.flush();
+
+                          try (InputStream input = in;
+                               FileOutputStream output = new FileOutputStream(dst)) {
+                              byte[] buffer = new byte[1024 * 1024];
+                              int n;
+                              while ((n = input.read(buffer)) != -1) {
+                                  output.write(buffer, 0, n);
+                              }
+                              output.flush();
+                          }
                       } catch (IOException e) {
                           throw new RuntimeException("Failed to copy " + name, e);
                       }
@@ -216,7 +270,7 @@ jobs:
               <application
                   android:allowBackup="false"
                   android:hardwareAccelerated="true"
-                  android:label="OpenClaw"
+                  android:label="@string/app_name"
                   android:supportsRtl="true"
                   android:theme="@style/AppTheme">
 
@@ -261,22 +315,15 @@ jobs:
           set(CMAKE_CXX_STANDARD_REQUIRED ON)
           set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-          # The repository contains very old SDL headers under ThirdParty/SDL2.
-          # Use the modern Android SDL headers instead.
-          file(REMOVE_RECURSE ${CMAKE_CURRENT_LIST_DIR}/../../../../../ThirdParty/SDL2)
-          file(MAKE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
-          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2/include/
-               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
-          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_image/include/
-               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
-          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_mixer/include/
-               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
-          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_ttf/include/
-               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
-          file(COPY ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_gfx/SDL2_gfxPrimitives.h
-               DESTINATION ${CMAKE_CURRENT_LIST_DIR}/../../../../../SDL2)
-
-          include_directories(BEFORE ${CMAKE_CURRENT_LIST_DIR}/../../../../../)
+          # Use the modern SDL headers before the old repository headers.
+          include_directories(BEFORE
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2/include
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_image/include
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_mixer/include
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_ttf/include
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_gfx
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../
+          )
 
           # SDL2
           set(SDL_SHARED ON CACHE BOOL "" FORCE)
@@ -284,15 +331,23 @@ jobs:
           set(SDL_TESTS OFF CACHE BOOL "" FORCE)
           set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
           set(SDL_INSTALL_TESTS OFF CACHE BOOL "" FORCE)
-          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2 SDL2-build)
+
+          add_subdirectory(
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2
+              SDL2-build
+          )
 
           # SDL2_image
           set(SDL2IMAGE_SAMPLES OFF CACHE BOOL "" FORCE)
           set(SDL2IMAGE_TESTS OFF CACHE BOOL "" FORCE)
           set(SDL2IMAGE_VENDORED ON CACHE BOOL "" FORCE)
-          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_image SDL2_image-build)
 
-          # SDL2_mixer. Timidity is kept enabled for XMI->MIDI playback.
+          add_subdirectory(
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_image
+              SDL2_image-build
+          )
+
+          # SDL2_mixer
           set(SDL2MIXER_SAMPLES OFF CACHE BOOL "" FORCE)
           set(SDL2MIXER_CMD OFF CACHE BOOL "" FORCE)
           set(SDL2MIXER_VENDORED ON CACHE BOOL "" FORCE)
@@ -300,32 +355,44 @@ jobs:
           set(SDL2MIXER_MIDI_TIMIDITY ON CACHE BOOL "" FORCE)
           set(SDL2MIXER_MIDI_FLUIDSYNTH OFF CACHE BOOL "" FORCE)
           set(SDL2MIXER_MIDI_NATIVE OFF CACHE BOOL "" FORCE)
-          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_mixer SDL2_mixer-build)
+
+          add_subdirectory(
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_mixer
+              SDL2_mixer-build
+          )
 
           # SDL2_ttf
           set(SDL2TTF_SAMPLES OFF CACHE BOOL "" FORCE)
           set(SDL2TTF_VENDORED ON CACHE BOOL "" FORCE)
-          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_ttf SDL2_ttf-build)
 
-          # SDL2_gfx: OpenClaw uses polygonRGBA/circleRGBA from the primitives
-          # implementation. Build the complete primitives translation unit.
+          add_subdirectory(
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_ttf
+              SDL2_ttf-build
+          )
+
+          # SDL2_gfx primitives
           add_library(SDL2_gfx STATIC
               ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_gfx/SDL2_gfxPrimitives.c
           )
+
           target_include_directories(SDL2_gfx PUBLIC
               ${CMAKE_CURRENT_LIST_DIR}/../../../../../third_party/SDL2_gfx
           )
+
           target_link_libraries(SDL2_gfx PRIVATE SDL2)
 
-          # OpenClaw root. It links SDL2, SDL2_image, SDL2_mixer, SDL2_ttf,
-          # SDL2_gfx and Android system libraries.
-          add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../../../ OpenClaw-build)
+          # OpenClaw
+          add_subdirectory(
+              ${CMAKE_CURRENT_LIST_DIR}/../../../../../
+              OpenClaw-build
+          )
 
           target_link_libraries(openclaw PRIVATE SDL2_gfx)
           EOF
 
       - name: Verify source Android entry point
         run: |
+          set -e
           grep -n "OpenClawMain" OpenClaw/main.cpp
           grep -n "ORIGINAL_ASSETS.ZIP" Build_Release/config.xml
 
@@ -425,12 +492,12 @@ jobs:
         run: |
           APK=$(find android-app/app/build/outputs/apk/debug -type f -name '*.apk' | head -n 1)
           test -n "$APK"
-          cp "$APK" OpenClaw-Android-arm64-v8a-debug.apk
-          ls -lh OpenClaw-Android-arm64-v8a-debug.apk
+          cp "$APK" OpenClaw-Android-debug.apk
+          ls -lh OpenClaw-Android-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClaw-Android-arm64-v8a-debug
-          path: OpenClaw-Android-arm64-v8a-debug.apk
+          name: OpenClaw-Android-debug
+          path: OpenClaw-Android-debug.apk
           if-no-files-found: error
