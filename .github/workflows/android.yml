@@ -423,6 +423,8 @@ jobs:
           target_link_libraries(SDL2_gfx PRIVATE SDL2)
 
           # OpenClaw
+          set(Android ON CACHE BOOL "Build OpenClaw for Android" FORCE)
+
           add_subdirectory(
               ${CMAKE_CURRENT_LIST_DIR}/../../../../../
               OpenClaw-build
@@ -527,6 +529,27 @@ jobs:
       - name: Build debug APK
         working-directory: android-app
         run: ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Verify native libraries
+        run: |
+          set -euo pipefail
+
+          echo "=== OpenClaw native libraries ==="
+          find android-app/app/build -type f -name 'libopenclaw.so' -print
+
+          test -n "$(find android-app/app/build -type f -name 'libopenclaw.so' -print -quit)"
+
+      - name: Verify APK native libraries
+        run: |
+          set -euo pipefail
+
+          APK=$(find android-app/app/build/outputs/apk/debug -type f -name '*.apk' | head -n 1)
+
+          echo "=== APK native libraries ==="
+          unzip -l "$APK" | grep -E 'lib/(arm64-v8a|armeabi-v7a)/lib(openclaw|SDL2)\.so'
+
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libopenclaw.so'
+          unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libopenclaw.so'
 
       - name: Rename APK
         run: |
