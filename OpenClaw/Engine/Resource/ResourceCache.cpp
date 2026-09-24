@@ -194,6 +194,9 @@ std::vector<std::string> ResourceZipArchive::GetAllFilesInDirectory(const char* 
     std::vector<std::string> filesInDirectory;
 
     std::string dirPath = directoryPath;
+    // Directory keys are stored lowercase by ZipFile::Init().
+    std::transform(dirPath.begin(), dirPath.end(), dirPath.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     // Our directories beging and end with "/"
     if (dirPath.size() > 0 && dirPath[0] != '/')
     {

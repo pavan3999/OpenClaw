@@ -1492,7 +1492,11 @@ TiXmlElement* CreateDefaultAssetsConfig()
 {
     TiXmlElement* assets = new TiXmlElement("Assets");
 
+#ifdef __ANDROID__
+    XML_ADD_TEXT_ELEMENT("RezArchive", "ORIGINAL_ASSETS.ZIP", assets);
+#else
     XML_ADD_TEXT_ELEMENT("RezArchive", "CLAW.REZ", assets);
+#endif
     XML_ADD_TEXT_ELEMENT("ResourceCacheSize", "50", assets);
     XML_ADD_TEXT_ELEMENT("TempDir", ".", assets);
     XML_ADD_TEXT_ELEMENT("SavesFile", "SAVES.XML", assets);
