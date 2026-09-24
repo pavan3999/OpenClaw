@@ -59,7 +59,7 @@
     <SpringBoardSpringHeight>UNUSED</SpringBoardSpringHeight>
     <SpringBoardSpringSpeed>11</SpringBoardSpringSpeed>
     <ClawMinFallHeight>500</ClawMinFallHeight>
-    <LoadAllLevelSaves>false</LoadAllLevelSaves>
+    <LoadAllLevelSaves>true</LoadAllLevelSaves>
     <ShowFps>false</ShowFps>
     <ShowPosition>false</ShowPosition>
   </GlobalOptions>
