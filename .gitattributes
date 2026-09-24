@@ -1,1 +1,2 @@
 Build_Release/CLAW.REZ filter=lfs -text
+Build_Release/ORIGINAL_ASSETS.ZIP filter=lfs -text
