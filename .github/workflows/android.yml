@@ -162,6 +162,20 @@ jobs:
           git clone --depth 1 \
             https://github.com/ferzkopp/SDL2_gfx.git third_party/SDL2_gfx
 
+      - name: Verify SDL2_gfx sources
+        run: |
+          echo "=== SDL2_gfx commit ==="
+          git -C third_party/SDL2_gfx rev-parse HEAD
+
+          echo "=== rotateSurface90Degrees definition ==="
+          grep -n "rotateSurface90Degrees" third_party/SDL2_gfx/SDL2_rotozoom.c
+
+          echo "=== rotateSurface90Degrees caller ==="
+          grep -n "rotateSurface90Degrees" third_party/SDL2_gfx/SDL2_gfxPrimitives.c
+
+          echo "=== rotozoom files ==="
+          ls -lh third_party/SDL2_gfx/SDL2_rotozoom.*
+
       - name: Create Android application
         run: |
           mkdir -p android-app/app/src/main/java/com/pavan3999/openclaw
