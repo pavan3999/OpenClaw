@@ -12,7 +12,7 @@ on:
       - 'CMakeLists.txt'
       - 'Build_Release/config.xml'
       - 'Build_Release/ASSETS.ZIP'
-      - 'Build_Release/ORIGINAL_ASSETS.ZIP'
+      - 'Build_Release/CLAW.REZ'
 
 permissions:
   contents: read
@@ -52,10 +52,10 @@ jobs:
           echo '=== Git LFS files ==='
           git lfs ls-files --debug
 
-          echo '=== Original assets ==='
-          ls -lh Build_Release/ORIGINAL_ASSETS.ZIP
-          file Build_Release/ORIGINAL_ASSETS.ZIP
-          wc -c Build_Release/ORIGINAL_ASSETS.ZIP
+          echo '=== Original CLAW.REZ ==='
+          ls -lh Build_Release/CLAW.REZ
+          file Build_Release/CLAW.REZ
+          wc -c Build_Release/CLAW.REZ
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -85,7 +85,7 @@ jobs:
           echo '=== Resource files ==='
 
           for f in \
-            Build_Release/ORIGINAL_ASSETS.ZIP \
+            Build_Release/CLAW.REZ \
             Build_Release/ASSETS.ZIP
           do
             if [ ! -e "$f" ]; then
@@ -109,8 +109,8 @@ jobs:
           echo '=== Check for an unresolved Git LFS pointer ==='
 
           if grep -aEq '^version https://git-lfs.github.com/spec/v1$' \
-              Build_Release/ORIGINAL_ASSETS.ZIP; then
-            echo "::error::ORIGINAL_ASSETS.ZIP is still a Git LFS pointer."
+              Build_Release/CLAW.REZ; then
+            echo "::error::CLAW.REZ is still a Git LFS pointer."
             echo "The actual LFS object was not downloaded."
             exit 1
           fi
@@ -122,16 +122,13 @@ jobs:
           fi
 
           echo
-          echo '=== Test ORIGINAL_ASSETS.ZIP ==='
-          unzip -t Build_Release/ORIGINAL_ASSETS.ZIP
+          echo '=== Test CLAW.REZ ==='
+          # CLAW.REZ is a proprietary resource archive, not a ZIP file.
+          # Its presence, size, and LFS-pointer status are verified above.
 
           echo
           echo '=== Test ASSETS.ZIP ==='
           unzip -t Build_Release/ASSETS.ZIP
-
-          echo
-          echo '=== Original resource ZIP ==='
-          unzip -l Build_Release/ORIGINAL_ASSETS.ZIP | head -25
 
           echo
           echo '=== OpenClaw custom resource ZIP ==='
@@ -216,7 +213,7 @@ jobs:
           echo '=== SDL2 Android Java sources ==='
           find android-app/app/src/main/java/org/libsdl -type f -name '*.java' -print | sort
 
-          cp Build_Release/ORIGINAL_ASSETS.ZIP android-app/app/src/main/assets/
+          cp Build_Release/CLAW.REZ android-app/app/src/main/assets/
           cp Build_Release/ASSETS.ZIP android-app/app/src/main/assets/
           cp Build_Release/config.xml android-app/app/src/main/assets/
 
@@ -241,7 +238,7 @@ jobs:
 
           public class OpenClawActivity extends SDLActivity {
               private static final String[] ASSETS = {
-                  "ORIGINAL_ASSETS.ZIP",
+                  "CLAW.REZ",
                   "ASSETS.ZIP",
                   "config.xml",
                   "SAVES.XML",
@@ -435,7 +432,7 @@ jobs:
         run: |
           set -e
           grep -n "OpenClawMain" OpenClaw/main.cpp
-          grep -n "ORIGINAL_ASSETS.ZIP" Build_Release/config.xml
+          grep -n "CLAW.REZ" Build_Release/config.xml
 
       - name: Create Gradle project
         run: |
