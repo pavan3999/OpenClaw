@@ -391,8 +391,6 @@ jobs:
               ${CMAKE_CURRENT_LIST_DIR}/../../../../../
               OpenClaw-build
           )
-
-          target_link_libraries(openclaw PRIVATE SDL2_gfx)
           EOF
 
       - name: Verify source Android entry point
