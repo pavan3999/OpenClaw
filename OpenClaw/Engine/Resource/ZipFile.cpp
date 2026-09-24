@@ -280,6 +280,12 @@ void ZipFile::End()
     m_ZipContentsMap.clear();
     SAFE_DELETE_ARRAY(m_pDirData);
     m_nEntries = 0;
+
+    if (m_pFile)
+    {
+        fclose(m_pFile);
+        m_pFile = NULL;
+    }
 }
 
 // --------------------------------------------------------------------------

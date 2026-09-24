@@ -858,7 +858,18 @@ bool BaseGameApp::InitializeResources(GameOptions& gameOptions)
         return false;
     }
 
-    std::string rezArchivePath = gameOptions.assetsFolder + gameOptions.rezArchive;
+    std::string assetsFolder = gameOptions.assetsFolder;
+
+#ifdef __ANDROID__
+    const char* internalStoragePath = SDL_AndroidGetInternalStoragePath();
+
+    if (internalStoragePath != NULL)
+    {
+        assetsFolder = std::string(internalStoragePath) + "/";
+    }
+#endif
+
+std::string rezArchivePath = assetsFolder + gameOptions.rezArchive;
 
     // The original game normally provides CLAW.REZ.  OpenClaw also supports
     // an extracted original Assets tree packed as a ZIP.  This is especially
@@ -896,7 +907,7 @@ bool BaseGameApp::InitializeResources(GameOptions& gameOptions)
     m_pResourceCache->RegisterLoader(MidiResourceLoader::Create());
     m_pResourceCache->RegisterLoader(PcxResourceLoader::Create());
 
-    std::string customArchivePath = gameOptions.assetsFolder + gameOptions.customArchive;
+    std::string customArchivePath = assetsFolder + gameOptions.customArchive;
 
     IResourceFile* pCustomArchive = new ResourceZipArchive(customArchivePath);
     std::shared_ptr<ResourceCache> pCustomCache{ new ResourceCache(50, pCustomArchive, CUSTOM_RESOURCE) };

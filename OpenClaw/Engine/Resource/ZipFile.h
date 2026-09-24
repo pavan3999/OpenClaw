@@ -30,7 +30,7 @@ class ZipFile
 {
 public:
     ZipFile() { m_nEntries = 0; m_pFile = NULL; m_pDirData = NULL; }
-    virtual ~ZipFile() { End(); fclose(m_pFile); }
+    virtual ~ZipFile() { End(); }
 
     bool Init(const std::string &resFileName);
     void End();
