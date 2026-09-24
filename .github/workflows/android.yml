@@ -152,6 +152,26 @@ jobs:
           git clone --depth 1 --branch "${SDL2_MIXER_VERSION}" --recurse-submodules \
             https://github.com/libsdl-org/SDL_mixer.git third_party/SDL2_mixer
 
+      - name: Fix WavPack Android ftello/fseeko
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("third_party/SDL2_mixer/external/wavpack/src/open_filename.c")
+          s = p.read_text()
+
+          marker = "#include <stdio.h>"
+
+          if marker in s and "_POSIX_C_SOURCE" not in s:
+              s = s.replace(
+                  marker,
+                  "#define _POSIX_C_SOURCE 200809L\n" + marker,
+                  1
+              )
+
+          p.write_text(s)
+          PY
+
       - name: Download SDL2_ttf
         run: |
           git clone --depth 1 --branch "${SDL2_TTF_VERSION}" --recurse-submodules \
