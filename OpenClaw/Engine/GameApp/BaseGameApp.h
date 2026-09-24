@@ -42,11 +42,7 @@ struct GameOptions
         consoleFontName = "clacon.ttf";
         consoleFontSize = 20;
 
-#ifdef __ANDROID__
-        rezArchive = "ORIGINAL_ASSETS.ZIP";
-#else
         rezArchive = "CLAW.REZ";
-#endif
         customArchive = "ASSETS.ZIP";
         resourceCacheSize = 50;
         tempDir = ".";
