@@ -169,17 +169,18 @@ jobs:
           mkdir -p android-app/app/src/main/assets
           mkdir -p android-app/app/src/main/cpp
 
-          mkdir -p android-app/app/src/main/java/org/libsdl/app
+          # Copy the complete SDL2 Android Java package. SDLActivity depends on
+          # SDL.java, SDLSurface.java, HIDDeviceManager.java, and other SDL
+          # classes, so copying only SDLActivity/SDLControllerManager is not enough.
+          rm -rf android-app/app/src/main/java/org/libsdl
+          mkdir -p android-app/app/src/main/java
 
-          cp third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/SDLActivity.java \
-             android-app/app/src/main/java/org/libsdl/app/SDLActivity.java
+          cp -r \
+            third_party/SDL2/android-project/app/src/main/java/org/libsdl \
+            android-app/app/src/main/java/
 
-          for f in SDLAudioManager.java SDLControllerManager.java; do
-            if [ -f "third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/$f" ]; then
-              cp "third_party/SDL2/android-project/app/src/main/java/org/libsdl/app/$f" \
-                 "android-app/app/src/main/java/org/libsdl/app/$f"
-            fi
-          done
+          echo '=== SDL2 Android Java sources ==='
+          find android-app/app/src/main/java/org/libsdl -type f -name '*.java' -print | sort
 
           cp Build_Release/ORIGINAL_ASSETS.ZIP android-app/app/src/main/assets/
           cp Build_Release/ASSETS.ZIP android-app/app/src/main/assets/
