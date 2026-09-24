@@ -800,6 +800,28 @@ bool BaseGameApp::InitializeDisplay(GameOptions& gameOptions)
         SDL_GetWindowSize(m_pWindow, &m_GameOptions.windowWidth, &m_GameOptions.windowHeight);
     }
 
+#ifdef __ANDROID__
+    int androidWidth = 0;
+    int androidHeight = 0;
+    SDL_GetWindowSize(m_pWindow, &androidWidth, &androidHeight);
+
+    if (androidWidth > 0 && androidHeight > 0)
+    {
+        gameOptions.windowWidth = androidWidth;
+        gameOptions.windowHeight = androidHeight;
+
+        const double scaleX = (double)androidWidth / 640.0;
+        const double scaleY = (double)androidHeight / 480.0;
+        gameOptions.scale = std::min(scaleX, scaleY);
+
+        LOG("Android display size: " +
+            ToStr(androidWidth) + "x" +
+            ToStr(androidHeight) +
+            " scale: " +
+            ToStr(gameOptions.scale));
+    }
+#endif
+
     m_WindowSize.Set(gameOptions.windowWidth, gameOptions.windowHeight);
 
     uint32 rendererFlags = SDL_RENDERER_ACCELERATED;
