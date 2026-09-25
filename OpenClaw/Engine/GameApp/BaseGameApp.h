@@ -262,6 +262,22 @@ public:
     std::string GetString(std::string stringId);
     Point GetScale();
     void SetScale(Point scale);
+
+    int GetPlayAreaLevel() const { return m_PlayAreaLevel; }
+
+    void IncreasePlayArea()
+    {
+        if (m_PlayAreaLevel < 10)
+            ++m_PlayAreaLevel;
+    }
+
+    void DecreasePlayArea()
+    {
+        if (m_PlayAreaLevel > 1)
+            --m_PlayAreaLevel;
+    }
+
+    SDL_Rect GetPlayAreaRect() const;
     uint32 GetWindowFlags();
 
     inline SDL_Renderer* GetRenderer() const { return m_pRenderer; }
@@ -352,6 +368,8 @@ private:
     bool m_IsQuitting;
 
     Point m_WindowSize;
+
+    int m_PlayAreaLevel = 10;
 
     GameCheats m_GameCheats;
     GlobalOptions m_GlobalOptions;

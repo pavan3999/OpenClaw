@@ -37,10 +37,15 @@ void Scene::OnRender()
     {
         m_pCamera->SetViewPosition(this);
 
+        SDL_Rect playArea = g_pApp->GetPlayAreaRect();
+        SDL_RenderSetClipRect(m_pRenderer, &playArea);
+
         m_pRoot->VPreRender(this);
         m_pRoot->VRender(this);
         m_pRoot->VRenderChildren(this);
         m_pRoot->VPostRender(this);
+
+        SDL_RenderSetClipRect(m_pRenderer, nullptr);
     }
 }
 

@@ -1299,6 +1299,27 @@ void BaseGameApp::SetScale(Point scale)
     SDL_RenderSetScale(m_pRenderer, (float)scale.x, (float)scale.y);
 }
 
+SDL_Rect BaseGameApp::GetPlayAreaRect() const
+{
+    Point logicalSize = GetWindowSizeScaled();
+
+    const int width = (int)logicalSize.x;
+    const int height = (int)logicalSize.y;
+
+    const int top = (int)(
+        (10 - m_PlayAreaLevel) *
+        0.02f *
+        height
+    );
+
+    return SDL_Rect{
+        0,
+        top,
+        width,
+        height - top
+    };
+}
+
 uint32 BaseGameApp::GetWindowFlags()
 {
     return SDL_GetWindowFlags(m_pWindow);
