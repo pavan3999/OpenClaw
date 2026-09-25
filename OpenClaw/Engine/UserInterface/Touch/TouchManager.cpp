@@ -27,6 +27,7 @@ bool TouchManager::PollEvent(Touch_Event *evt) {
     }
     *evt = m_EventQueue.front();
     m_EventQueue.pop_front();
+    evt->sdlEvent.user.data1 = evt;
     return true;
 }
 
