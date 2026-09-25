@@ -354,6 +354,7 @@ void BaseGameApp::OnEvent(SDL_Event& event)
         case SDL_FINGERDOWN:
         case SDL_FINGERMOTION:
         {
+            LOG("SDL FINGER event type=" + ToStr(event.type) + " x=" + ToStr(event.tfinger.x) + " y=" + ToStr(event.tfinger.y));
             if (m_pTouchManager) {
                 switch (event.type) {
                     case SDL_FINGERUP:
